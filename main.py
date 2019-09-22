@@ -1,6 +1,7 @@
 from PIL import Image, ImageTk
 from Fisher import *
 from Controller import *
+import Imager
 import Tkinter 
 import sys 
 import os
@@ -40,13 +41,14 @@ class Main():
         Tkinter.Label(mainwindow, text='Use Bauble?').grid(row=3, column=0)
         Tkinter.Checkbutton(mainwindow, text="", variable=bauble_flag).grid(row=3, column=1)
         
-        Tkinter.Button(mainwindow, text='Set Mouse Start', width=25, command=lambda:self.set_mouse_start(start_text)).grid(row=4, columnspan=3)
-        Tkinter.Button(mainwindow, text='Set Mouse End', width=25, command=lambda:self.set_mouse_end(end_text)).grid(row=5, columnspan=3)
-
         image = Image.open("play.png").resize((25,25), Image.ANTIALIAS)
-        play = ImageTk.PhotoImage(master=mainwindow,image= image)
+        play = ImageTk.PhotoImage(master=mainwindow, image=image)
+        startButton = Tkinter.Button(mainwindow, text='', image=play, state="disabled", command=lambda:self.finish_setup(mainwindow, int(run_time_text.get()), bauble_flag.get()))
 
-        Tkinter.Button(mainwindow, text='', image=play, command=lambda:self.finish_setup(mainwindow, int(run_time_text.get()), bauble_flag.get())).grid(row=6, columnspan=3)
+        Tkinter.Button(mainwindow, text='Set Mouse Start', width=25, command=lambda:self.set_mouse_start(start_text, startButton)).grid(row=4, columnspan=3)
+        Tkinter.Button(mainwindow, text='Set Mouse End', width=25, command=lambda:self.set_mouse_end(end_text, startButton)).grid(row=5, columnspan=3)
+
+        startButton.grid(row=6, columnspan=3)
 
         mainwindow.mainloop()
 
@@ -55,15 +57,19 @@ class Main():
         self.run_for_minutes = run_for_minutes
         self.use_bauble = use_bauble
 
-    def set_mouse_start(self, text):
+    def set_mouse_start(self, text, start_button):
         Controller.wait_for_click()
         self.start = Controller.get_cords()
-        text.set(self.start)
+        text.set('({}, {})'.format(self.start[0], self.start[1]))
+        if (self.end and self.start):
+            start_button.config(state="normal")
         
-    def set_mouse_end(self, text):
+    def set_mouse_end(self, text, start_button):
         Controller.wait_for_click()
         self.end = Controller.get_cords()
-        text.set(self.end)
+        text.set('({}, {})'.format(self.end[0], self.end[1]))
+        if (self.end and self.start):
+            start_button.config(state="normal")
 
     def create_running_gui(self):
         mainwindow = Tkinter.Tk()
@@ -86,11 +92,18 @@ class Main():
         fish_text = Tkinter.StringVar()
         Tkinter.Label(textvariable=fish_text).pack(side="left")
 
-        water_canvas = Tkinter.Canvas(mainwindow, width=20, height=20)
-        water_color_element = water_canvas.create_rectangle(0, 0, 20, 20, fill="black")
-        water_canvas.pack(side="left")
+        original_canvas = Tkinter.Canvas(mainwindow, width=20, height=20)
+        original_canvas_element = original_canvas.create_rectangle(0, 0, 20, 20, fill="black")
+        original_canvas.pack(side="left")
+        
+        compared_canvas = Tkinter.Canvas(mainwindow, width=20, height=20)
+        compared_canvas_element = compared_canvas.create_rectangle(0, 0, 20, 20, fill="black")
+        compared_canvas.pack(side="left")
+
+        diff_text = Tkinter.StringVar()
+        Tkinter.Label(textvariable=diff_text).pack(side="left")
             
-        self.update_fields(mainwindow, time_text, fish_text, water_canvas, water_color_element)
+        self.update_fields(mainwindow, time_text, fish_text, original_canvas, original_canvas_element, compared_canvas, compared_canvas_element, diff_text)
 
         mainwindow.mainloop()
 
@@ -110,11 +123,10 @@ class Main():
 
         mainwindow.mainloop()
 
-    #  fish_caught_text, water_color, scan_color, difference_text
-    def update_fields(self, mainwindow, time_text, fish_caught_text, water_canvas, water_color_element):
+    def update_fields(self, mainwindow, time_text, fish_text, original_canvas, original_canvas_element, compared_canvas, compared_canvas_element, diff_text):
         if (self.fisher.finished):
             mainwindow.destroy()
-            return
+            return1
 
         display_time = ""
 
@@ -124,9 +136,16 @@ class Main():
             display_time = str(datetime.timedelta(seconds=math.ceil(self.fisher.get_remaining_time())))
         
         time_text.set(display_time)
-        fish_caught_text.set('{} fish.'.format(self.fisher.num_fish_caught))
+        fish_text.set('{} fish.'.format(self.fisher.num_fish_caught))
 
-        mainwindow.after(1000, lambda:self.update_fields(mainwindow, time_text, fish_caught_text, water_canvas, water_color_element))
+        orig_hex = Imager.rgb_to_hex(self.fisher.scanner.original_water_rgb)
+        original_canvas.itemconfig(original_canvas_element, fill=orig_hex)
+
+        compare_hex = Imager.rgb_to_hex(self.fisher.scanner.scanning_water_rgb)
+        compared_canvas.itemconfig(compared_canvas_element, fill=compare_hex)
+        diff_text.set('\n'.join(str(x) for x in self.fisher.scanner.last_5_diffs))
+
+        mainwindow.after(100, lambda:self.update_fields(mainwindow, time_text, fish_text, original_canvas, original_canvas_element, compared_canvas, compared_canvas_element, diff_text))
 
     def quit_fishing(self, mainwindow):
         self.fisher.end()

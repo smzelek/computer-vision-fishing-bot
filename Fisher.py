@@ -71,10 +71,7 @@ class Fisher(threading.Thread):
                 self.done_fishing()
             try:
                 self.thing_done.clear()
-                print ("i'm fishin!")
-                time.sleep(1)
-                self.num_fish_caught = self.num_fish_caught + 1
-                # self.do_fishing()
+                self.fish()
             finally:
                 self.thing_done.set()
         self.done_fishing()
@@ -83,17 +80,19 @@ class Fisher(threading.Thread):
         self.finished = True
         sys.exit()
 
-    def do_fishing(self):
+    def fish(self):
         self.use_bauble_if_needed()
             
         Controller.cast()
         self.cast_time = time.time()
         time.sleep(0.5)
 
-        # if findBobber():
-        #     reelIn()
-            # elapsedMins = int((time.time() - starttime)/60)
-            # print "" + str(reelcount) + " reels in " + str(elapsedMins) + " mins."
+        if self.scanner.find_bobber():
+            if self.scanner.wait_for_splash():
+                Controller.set_mouse_pos(self.scanner.bobber_cords)
+                time.sleep(0.01)
+                Controller.loot()
+                self.num_fish_caught = self.num_fish_caught + 1
 
     def use_bauble_if_needed(self):
         if self.use_bauble and ((time.time() - self.last_used_bauble_time)/60 > bauble_duration_mins):
@@ -113,25 +112,3 @@ class Fisher(threading.Thread):
     def end(self):
         self.can_run.set()
         self.should_kill = True
-
-
-
-
-
-# def reelIn():
-#     global globaltime
-#     mousePos = get_cords()
-#     idle_bobber = grab_avg(mousePos)
-    
-#     splashSensitivity = 400
-
-#     while (time.time() < globaltime + 25):
-#         current_bobber = grab_avg(mousePos)
-#         diff = rgb_distance(idle_bobber, current_bobber)
-#         if diff > splashSensitivity:
-#             print "Reeled in a big one!"
-#             global reelcount
-#             reelcount = reelcount + 1
-#             loot()
-#             break
-            

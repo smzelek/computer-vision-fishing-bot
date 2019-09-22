@@ -1,65 +1,71 @@
-from PIL import ImageGrab
-import Controller
+import Imager
+from collections import OrderedDict
+import time
 
 class Scanner():
     def __init__(self, start, end):
         self.start = start
         self.end = end
-        self.water_values = {}
-        print(self.end)
-        print(self.start)
 
+        self.water_values = OrderedDict()
+        self.find_start_time = 0
+        self.bobber_cords = None
+
+        self.original_water_rgb = [0,0,0]
+        self.scanning_water_rgb = [0,0,0]
+        self.last_5_diffs = []
+        self.water_sensitivity = 300
+        self.bobber_sensitivity = 300
+
+        self.scan_water()
+        
     def scan_water(self):
         y = self.start[1]
         while y < self.end[1]:
             x = self.start[0]
             while (x < self.end[0]):
-                Controller.set_mouse_pos([x, y])
-                check = grab_avg([x,y])
-                self.waterVals[(x,y)] = check
+                check = Imager.grab_avg([x,y])
+                self.water_values[(x,y)] = check
                 x = x + 20
-            y = ycount + 10
+            y = y + 10
 
-    # def findBobber():
-    #     ycount = ystart
-    #     while ycount < yend:
-    #         xcount = xstart
-    #         while (xcount < xend) and (time.time() < globaltime + 25):
-    #             set_mouse_pos([xcount, ycount])
-    #             time.sleep(.001)
-    #             val_at_check = grab_avg([xcount, ycount])
-    #             rgbdiff = rgb_distance(val_at_check, bobberVal)
-    #             if rgbdiff < int(bobberSensitivity.get()):
-    #                 set_mouse_pos((xcount,ycount))
-    #                 time.sleep(.3)
-    #                 print "Bobber found"
-    #                 return True
-    
-    #             xcount = xcount + 20
-    #         ycount = ycount + 10
-    #     return False
+    def find_bobber(self):
+        self.find_start_time = time.time()
+        self.last_5_diffs = []
 
-def grab_img(pos): 
-     box = (pos[0] - 5, pos[1] - 5, pos[0] + 5, pos[1] + 5)
-     return ImageGrab.grab(box)
+        for key, value in self.water_values.items():
+            if time.time() > self.find_start_time + 25:
+                return False
 
-def grab_avg(pos):
-    im = grab_img(pos).convert('RGB')
-    a = array(im.getdata())
-    reds = [pair[0] for pair in a]
-    greens = [pair[1] for pair in a]
-    blues = [pair[2] for pair in a]
-    r = sum(reds)/len(reds)
-    g = sum(greens)/len(greens)
-    b = sum(blues)/len(blues)
-    return [r, g, b]
+            scan_value = Imager.grab_avg(key)
+            rgb_diff = Imager.rgb_distance(scan_value, value)
+            
+            self.original_water_rgb = value
+            self.scanning_water_rgb = scan_value    
+            self.add_diff(rgb_diff)
 
-def rgb_to_hex(rgb):
-    return '#%02x%02x%02x' % (rgb[0], rgb[1], rgb[2])
+            if rgb_diff > self.water_sensitivity:
+                self.bobber_cords = key
+                return True
+        return False
 
-def rgb_distance(rgb1, rgb2):
-    dred = rgb1[0] - rgb2[0]
-    dgreen = rgb1[1] - rgb2[1]
-    dblue = rgb1[2] - rgb2[2]
-    
-    return dred*dred + dgreen*dgreen + dblue*dblue
+    def wait_for_splash(self):
+        idle_bobber = Imager.grab_avg(self.bobber_cords)
+        self.original_water_rgb = idle_bobber
+        self.last_5_diffs = []
+
+        while time.time() < self.find_start_time + 25:
+            current_bobber = Imager.grab_avg(self.bobber_cords)
+            self.scanning_water_rgb = current_bobber
+
+            rgb_diff = Imager.rgb_distance(idle_bobber, current_bobber)
+            self.add_diff(rgb_diff)
+
+            if rgb_diff > self.bobber_sensitivity:
+                return True
+        return False
+
+    def add_diff(self, val):
+        self.last_5_diffs.insert(0,val)
+        while (len(self.last_5_diffs)) > 5:
+            self.last_5_diffs.pop()
