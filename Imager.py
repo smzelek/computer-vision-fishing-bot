@@ -2,7 +2,7 @@ from PIL import ImageGrab
 from numpy import array
 
 def grab_img(pos): 
-    box = (pos[0] - 5, pos[1] - 5, pos[0] + 5, pos[1] + 5)
+    box = (pos[0] - 10, pos[1] - 10, pos[0] + 10, pos[1] + 10)
     return ImageGrab.grab(box)
 
 def grab_avg(pos):
